@@ -32,7 +32,7 @@ class SuperResolutionVAEDataset(Dataset):
 
     def __getitem__(self, idx):
         hr_image, _ = self.hr_images[idx]
-        hr_image = Image.open(hr_image)
+        #hr_image = Image.open(hr_image)
         pre_image = self.pre_transform(hr_image)
         hr_image = self.hr_transform(pre_image)
         lr_image = self.lr_transform(pre_image)
