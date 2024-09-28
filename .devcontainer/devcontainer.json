@@ -13,8 +13,19 @@
 		"ghcr.io/nils-geistmann/devcontainers-features/zsh:0": {},
 		"ghcr.io/larsnieuwenhuizen/features/neovim:0": {},
 		"ghcr.io/devcontainers/features/python:1": {}
+	},
+	"customizations": {
+		"codespaces": {
+			"openFiles": []
+		},
+		"vscode": {
+			"extensions": [
+				"ms-toolsai.jupyter",
+				"ms-python.python"
+			]
+		}
 	}
-	// Features to add to the dev container. More info: https://containers.dev/features.
+	// Feat,ures to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],

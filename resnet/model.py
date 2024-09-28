@@ -186,7 +186,8 @@ class LitSRResnet(SRResnetModel, L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
+        optimizer = torch.optim.adamw.AdamW(
+            self.parameters(), lr=self.config.lr)
         return optimizer
 
 
