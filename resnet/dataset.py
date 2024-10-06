@@ -31,9 +31,9 @@ class SuperResolutionVAEDataset(Dataset):
         return len(self.hr_images)
 
     def __getitem__(self, idx):
-        hr_image, _ = self.hr_images[idx]
-        hr_image = Image.open(hr_image)
-        pre_image = self.pre_transform(hr_image)
+        image, _ = self.hr_images[idx]
+        # image = Image.open(image)
+        pre_image = self.pre_transform(image)
         hr_image = self.hr_transform(pre_image)
         lr_image = self.lr_transform(pre_image)
         return lr_image, hr_image
@@ -49,10 +49,10 @@ def get_dataloader(batch_size=64, num_workers=8):
     val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False,  num_workers=num_workers)
     return train_loader, val_loader
 
-if __name__ == '__main__':
-    train_loader, val_loader = get_dataloader(num_workers=1, batch_size=4)
-    print(len(train_loader), len(val_loader))
-    for data in train_loader:
-        inputs, labels = data
-        print(inputs.shape)  # Check the shape to confirm the data is loaded correctly
-        break
+# if __name__ == '__main__':
+#     train_loader, val_loader = get_dataloader(num_workers=1, batch_size=4)
+#     print(len(train_loader), len(val_loader))
+#     for data in train_loader:
+#         inputs, labels = data
+#         print(inputs.shape)  # Check the shape to confirm the data is loaded correctly
+#         break

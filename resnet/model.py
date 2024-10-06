@@ -13,13 +13,14 @@ class SRResnetConfig:
     lr: float = 1e-3
     num_blocks: int = 16
     is_training: bool = True
+    device:str = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def default(self):
         return self
 
 class SRResnetModel(nn.Module):
     def initialize(self):
-        for layer in self.encoder:
+        for layer in self.parameters:
             if isinstance(layer, nn.Conv2d):
                 nn.init.kaiming_normal_(layer.weight)
                 if layer.bias is not None:
@@ -29,36 +30,33 @@ class SRResnetModel(nn.Module):
                 nn.init.zeros_(layer.bias)
 
     def __init__(self,config:SRResnetConfig) -> None:
+        super().__init__()
         self.config=config
 
-        modules = []
+        _modules = []
 
         self.in_channel = nn.Sequential(
-                nn.Conv2d(config.in_channels, 16, 3, 1, 1),
-                nn.BatchNorm2d(16),
+                nn.Conv2d(self.config.in_channels, 16, 3, 1, 1, device=self.config.device),
+                nn.BatchNorm2d(16, device=self.config.device),
         )
 
-        hidden_channel = config.hidden_channel
+        hidden_channel = self.config.hidden_channel
 
         # encoder
         for i in range(1, config.num_blocks+1):
-            modules += [
-                    nn.Conv2d(hidden_channel, hidden_channel*i, 3, 2, 1),
-                    nn.BatchNorm2d(hidden_channel*i),
-            ]
+            _modules.append(nn.Conv2d(hidden_channel, hidden_channel*i, 3, 2, 1, device=self.config.device))
+            _modules.append(nn.BatchNorm2d(hidden_channel*i, device=self.config.device))
             hidden_channel *= i
 
         # no bottleneck
         #
         # decoder
         for i in range(1, config.num_blocks+1):
-            modules += [
-                    nn.Conv2d(hidden_channel, hidden_channel//i, 3, 2, 1),
-                    nn.BatchNorm2d(hidden_channel//i),
-            ]
+            _modules.append(nn.Conv2d(hidden_channel, hidden_channel//i, 3, 2, 1, device=self.config.device))
+            _modules.append(nn.BatchNorm2d(hidden_channel//i, device=self.config.device))
             hidden_channel //= i
 
-        self.block = nn.ModuleList(modules)
+        self.block = nn.ModuleList(_modules, device=self.config.device)
 
         self.out_channel = nn.Sequential(
             nn.Conv2d(16, 3, 3, 2, 1),
@@ -66,6 +64,7 @@ class SRResnetModel(nn.Module):
             nn.Conv2d(16, 3, 3, 1, 1),
             nn.Tanh()
             )
+        self.initialize()
 
 
     @staticmethod
@@ -91,21 +90,23 @@ class SRResnetModel(nn.Module):
 
 
 
-class LitSRResnet(L.LightningModule, SRResnetModel):
+class LitSRResnet(L.LightningModule):
     def __init__(self, config: SRResnetConfig):
         super().__init__()
+
+        self.model = SRResnetModel(config)
         self.pnsr = PeakSignalNoiseRatio()
         self.ssim = StructuralSimilarityIndexMeasure()
         self.config = config
 
     def training_step(self, batch, _):
         x, target = batch
-        _, loss = self(x, target)
+        _, loss = self.model(x, target)
         return loss
 
     def validation_step(self, batch, _):
         x, target = batch
-        logits, loss = self(x, target)
+        logits, loss = self.model(x, target)
 
         psnr = self.pnsr(logits, target)
         ssim = self.ssim(logits, target)
@@ -115,9 +116,10 @@ class LitSRResnet(L.LightningModule, SRResnetModel):
         self.log('val_ssim', ssim)
 
         return loss
+    
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.config.lr)
         return optimizer
 
 
