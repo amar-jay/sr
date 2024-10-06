@@ -69,6 +69,7 @@ if __name__ == "__main__":
             y = litmodel.model(x)
             print(y.shape)
             show_image(y) # show the image
+            plt.imshow(x[0].permute(1, 2, 0).cpu().numpy())
             plt.savefig("generated.png")
             break
 
