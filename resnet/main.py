@@ -23,7 +23,7 @@ checkpoint_callback = ModelCheckpoint(
 
 if __name__ == "__main__":
     import numpy as np
-    from .model import LitSRResnet, SRResnetConfig
+    from model import LitSRResnet, SRResnetConfig
     import pytorch_lightning as L
     from dataset import get_dataloader
 
