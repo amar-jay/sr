@@ -27,10 +27,16 @@ if __name__ == "__main__":
     import pytorch_lightning as L
     from dataset import get_dataloader
 
-    config = SRResnetConfig().default()
+    # config = SRResnetConfig().default()
+    config = SRResnetConfig(
+        hidden_channel=3,
+        device='cuda',
+        lr=1e-3,
+        is_training=True
+    )
 
     _type = input("train / inference, yes if training (y/N): ")
-    train_dset, val_dset = get_dataloader()
+    train_dset,val_dset =get_dataloader(batch_size=1, num_workers=8, input_px=128, output_px=262)
     if _type == "y":
         lit_model = LitSRResnet(config)
         trainer = L.Trainer(max_epochs=2, callbacks=[checkpoint_callback])

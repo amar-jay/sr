@@ -36,7 +36,7 @@ class SRResnetModelv1(nn.Module):
         self.config = config
 
         self.conv1 = nn.ConvTranspose2d(
-            config.in_channels, config.hidden_channel, kernel_size=config.kernel_size, stride=config.stride)
+            config.in_channels, config.hidden_channel, kernel_size=config.kernel_size, stride=config.stride, device=config.device)
         # self.bn1= nn.BatchNorm2d(config.hidden_channel)
         # self.conv2 = nn.ConvTranspose2d(config.hidden_channel, config.in_channels, kernel_size=config.kernel_size, stride=config.stride)
         self.out_ch = nn.Tanh()
@@ -46,7 +46,7 @@ class SRResnetModelv1(nn.Module):
     @staticmethod
     def loss(x, target):
         # Reconstruction loss (binary cross-entropy for image data)
-        recon_loss = F.binary_cross_entropy(x, target, reduction='sum')
+        recon_loss = F.cross_entropy(x, target)
         return recon_loss
 
     def forward(self, x, target=None):
@@ -80,8 +80,8 @@ class SRResnetModel(nn.Module):
 
         self.in_channel = nn.Sequential(
             nn.Conv2d(config.in_channels, config.hidden_channel,
-                      kernel_size=config.kernel_size, stride=config.stride, padding=config.padding),
-            nn.BatchNorm2d(config.hidden_channel)
+                      kernel_size=config.kernel_size, stride=config.stride, padding=config.padding, device=config.device),
+            nn.BatchNorm2d(config.hidden_channel, device=config.device)
         )
 
         hidden_channel = config.hidden_channel
@@ -90,8 +90,8 @@ class SRResnetModel(nn.Module):
         for i in range(2, config.num_blocks+2):
             modules += [
                 nn.Conv2d(hidden_channel, hidden_channel*i,
-                          kernel_size=config.kernel_size, stride=config.stride),
-                nn.BatchNorm2d(hidden_channel*i),
+                          kernel_size=config.kernel_size, stride=config.stride, device=config.device),
+                nn.BatchNorm2d(hidden_channel*i, device=config.device),
             ]
             hidden_channel *= i
         self.encoder = nn.ModuleList(modules)
@@ -103,8 +103,8 @@ class SRResnetModel(nn.Module):
         for i in range(config.num_blocks):
             modules += [
                 nn.ConvTranspose2d(hidden_channel, hidden_channel//(config.num_blocks+1-i),
-                                   kernel_size=config.kernel_size, stride=config.stride),
-                nn.BatchNorm2d(hidden_channel//(config.num_blocks+1-i)),
+                                   kernel_size=config.kernel_size, stride=config.stride, device=config.device),
+                nn.BatchNorm2d(hidden_channel//(config.num_blocks+1-i), device=config.device),
             ]
             hidden_channel //= config.num_blocks+1-i
 
@@ -112,12 +112,12 @@ class SRResnetModel(nn.Module):
 
         self.out_channel = nn.Sequential(
             nn.ConvTranspose2d(config.hidden_channel, config.out_channels,
-                               kernel_size=config.kernel_size, stride=config.stride, padding=config.padding),
-            nn.BatchNorm2d(config.out_channels),
+                               kernel_size=config.kernel_size, stride=config.stride, padding=config.padding, device=config.device),
+            nn.BatchNorm2d(config.out_channels, device=config.device),
         )
         self.sr_channel = nn.Sequential(
             nn.ConvTranspose2d(config.out_channels, config.out_channels,
-                               kernel_size=config.kernel_size, stride=config.stride, padding=config.padding),
+                               kernel_size=config.kernel_size, stride=config.stride, padding=config.padding, device=config.device),
             nn.Tanh()
         )
         self.initialize()
@@ -161,9 +161,10 @@ class SRResnetModel(nn.Module):
         return x
 
 
-class LitSRResnet(SRResnetModel, L.LightningModule):
+class LitSRResnet(L.LightningModule):
     def __init__(self, config: SRResnetConfig):
-        super().__init__(config)
+        super().__init__()
+        self.model = SRResnetModelv1(config)
         self.pnsr = PeakSignalNoiseRatio()
         self.ssim = StructuralSimilarityIndexMeasure()
         self.config = config
@@ -188,7 +189,7 @@ class LitSRResnet(SRResnetModel, L.LightningModule):
     
 
     def configure_optimizers(self):
-        optimizer = torch.optim.adamw.AdamW(
+        optimizer = torch.optim.AdamW(
             self.parameters(), lr=self.config.lr)
         return optimizer
 
@@ -214,18 +215,27 @@ if __name__ == "__main__":
         kernel_size=3,
         is_training=True
     )
+    x = torch.randn(1, 3, 128, 128).to(config.device)
+    t = torch.randn(1, 3, 257, 257).to(config.device)
     model = LitSRResnet(config)
     print(model.config)
     print("-"*50)
     print(model)
     print("-"*50)
-    x = torch.randn(1, 3, 64, 64)
-    y = model(x)
-    print("\nresults = ", y.shape,
-          f"resolution upscale size= {y.size(2)/x.size(2)}x")
+    loss = model.training_step((x, t), 0)
+    for param in model.parameters():
+        param.grad = None
+    loss.retain_grad()
+    loss.backward()
+    
+    print("\ninitial loss = ", loss.item(), "grad=", loss.grad)
     _model = SRResnetModelv1(config)
     print(_model)
     print("-"*50)
-    y = _model(x)
+    y, loss = _model(x, t)
+    for param in model.parameters():
+        param.grad = None
+    loss.retain_grad()
+    loss.backward()
     print("\nresults = ", y.shape,
-          f"resolution upscale size= {y.size(2)/x.size(2)}x")
+          "grad=",loss.grad,f"resolution upscale size= {y.size(2)/x.size(2)}x")
