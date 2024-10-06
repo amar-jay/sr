@@ -162,8 +162,13 @@ class SRResnetModel(nn.Module):
 
 
 class LitSRResnet(L.LightningModule):
-    def __init__(self, config: SRResnetConfig):
+    def __init__(self):
         super().__init__()
+        config = SRResnetConfig(
+            hidden_channel=3,
+            lr=1e-3,
+            is_training=True
+        )
         self.model = SRResnetModelv1(config)
         self.pnsr = PeakSignalNoiseRatio()
         self.ssim = StructuralSimilarityIndexMeasure()
@@ -217,7 +222,7 @@ if __name__ == "__main__":
     )
     x = torch.randn(1, 3, 128, 128).to(config.device)
     t = torch.randn(1, 3, 257, 257).to(config.device)
-    model = LitSRResnet(config)
+    model = LitSRResnet()
     print(model.config)
     print("-"*50)
     print(model)

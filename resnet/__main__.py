@@ -22,15 +22,15 @@ checkpoint_callback = ModelCheckpoint(
 
 
 if __name__ == "__main__":
-    import numpy as np
     from model import LitSRResnet, SRResnetConfig
     import pytorch_lightning as L
+    import os
+    import matplotlib.pyplot as plt
     from dataset import get_dataloader
 
     # config = SRResnetConfig().default()
     config = SRResnetConfig(
         hidden_channel=3,
-        device='cuda',
         lr=1e-3,
         is_training=True
     )
@@ -38,15 +38,41 @@ if __name__ == "__main__":
     _type = input("train / inference, yes if training (y/N): ")
     train_dset,val_dset =get_dataloader(batch_size=1, num_workers=8, input_px=128, output_px=262)
     if _type == "y":
-        lit_model = LitSRResnet(config)
+        lit_model = LitSRResnet()
         trainer = L.Trainer(max_epochs=2, callbacks=[checkpoint_callback])
         trainer.fit(lit_model, train_dataloaders=train_dset, val_dataloaders=val_dset)
 
     else:
         checkpoint_path = input("Enter the checkpoint path: ")
         config.is_training = False
-        model = LitSRResnet(config).load_from_checkpoint(checkpoint_path if checkpoint_path is not None else "checkpoint.ckpt")
-        model.eval()
+        if checkpoint_path == "":
+            print("setting default checkpoint path - checkpoint.ckpt")
+            checkpoint_path = "model.ckpt"
+        #checkpoint = torch.load(checkpoint_path, weights_only=True)
+        # check if path is valid
+        if not os.path.exists(checkpoint_path):
+            print("Invalid path")
+            exit(1)
+        litmodel = LitSRResnet.load_from_checkpoint(checkpoint_path)
+        litmodel.eval()
+        for param in litmodel.parameters():
+            param.requires_grad = False
+
+        show_image = lambda x: plt.imshow(x[0].permute(1, 2, 0).cpu().numpy())
+        for x, target in val_dset:
+            x = x.to(config.device)
+            show_image(x)
+            plt.savefig("input.png")
+            show_image(target)
+            plt.savefig("target.png")
+            print(f"{x.shape=}, {target.shape=}")
+            y = litmodel.model(x)
+            print(y.shape)
+            show_image(y) # show the image
+            plt.savefig("generated.png")
+            break
+
+        print("Model loaded successfully")
 
 
 
